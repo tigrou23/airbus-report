@@ -1,0 +1,209 @@
+\documentclass[11pt]{article}
+
+\usepackage[a4paper,margin=2.2cm]{geometry}
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{booktabs}
+\usepackage{caption}
+\usepackage{subcaption}
+\usepackage{hyperref}
+\usepackage{xcolor}
+\usepackage{listings}
+
+\hypersetup{
+  colorlinks=true,
+  linkcolor=blue,
+  urlcolor=blue,
+  citecolor=blue
+}
+
+\lstdefinestyle{py}{
+  language=Python,
+  basicstyle=\ttfamily\small,
+  keywordstyle=\color{blue},
+  commentstyle=\color{gray},
+  stringstyle=\color{teal},
+  showstringspaces=false,
+  breaklines=true,
+  frame=single,
+  rulecolor=\color{black!20},
+  tabsize=4
+}
+\lstset{style=py}
+
+\title{Python in Finance\\Quantitative Trading Strategy Analysis (Airbus)}
+\author{Baptiste Gillot}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+This report presents a quantitative analysis workflow implemented in Python, applied to Airbus (ticker \texttt{AIR.PA}). 
+The deliverable follows the same structure as the provided reference report: (i) a single-asset technical-indicator analysis and strategy backtest, and (ii) a multi-asset portfolio analysis with optimization. 
+All interpretations are intentionally omitted; figures produced by the notebook are referenced throughout.
+\end{abstract}
+
+\section{Quantitative Trading Strategy Analysis for Airbus Stock}
+
+\subsection{Analysis Objective}
+Use historical price data for Airbus to compute technical indicators and build a simple rule-based trading strategy for backtesting.
+
+\subsection{Analysis Method}
+The analysis uses:
+\begin{itemize}
+  \item \texttt{yfinance} for data collection,
+  \item \texttt{pandas} and \texttt{numpy} for data processing,
+  \item \texttt{matplotlib} for visualization,
+  \item a simple RSI-threshold trading rule for backtesting.
+\end{itemize}
+
+\subsection{Core Code Example}
+
+\subsubsection{Step 1: Data Acquisition and Cleaning}
+The notebook downloads \texttt{AIR.PA} historical data and removes rows containing missing values.
+
+\begin{lstlisting}
+import yfinance as yf
+import pandas as pd
+
+SYMBOL = "AIR.PA"
+START_DATE = "2014-01-01"
+END_DATE   = "2024-01-01"
+
+stock_raw = yf.download(SYMBOL, start=START_DATE, end=END_DATE, progress=False)
+stock = stock_raw.dropna(how="any")
+\end{lstlisting}
+
+\subsubsection{Step 2: Moving Averages}
+The notebook computes and plots two moving averages based on Adjusted Close: MA5 and MA20.
+
+\begin{lstlisting}
+stock["MA5"]  = stock["Adj Close"].rolling(window=5).mean()
+stock["MA20"] = stock["Adj Close"].rolling(window=20).mean()
+\end{lstlisting}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.92\textwidth]{figures/airbus_moving_average.png}
+  \caption{Airbus stock price and moving averages (MA5, MA20).}
+  \label{fig:ma}
+\end{figure}
+
+\subsubsection{Step 3: Relative Strength Index (RSI-14)}
+The notebook computes the RSI with a 14-day rolling window.
+
+\begin{lstlisting}
+delta = price.diff()
+gain  = delta.clip(lower=0)
+loss  = -delta.clip(upper=0)
+
+avg_gain = gain.rolling(window=14).mean()
+avg_loss = loss.rolling(window=14).mean()
+
+rs  = avg_gain / avg_loss
+rsi = 100 - (100 / (1 + rs))
+\end{lstlisting}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.92\textwidth]{figures/airbus_rsi.png}
+  \caption{Airbus RSI-14.}
+  \label{fig:rsi}
+\end{figure}
+
+\subsubsection{Step 4: Strategy Backtesting}
+The notebook applies a discrete trading rule based on RSI thresholds:
+\begin{itemize}
+  \item Buy when RSI $<$ 30,
+  \item Sell when RSI $>$ 70.
+\end{itemize}
+The portfolio value is tracked over time (fees and taxes are ignored in the model).
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.92\textwidth]{figures/airbus_rsi_strategy_portfolio_value.png}
+  \caption{Backtest portfolio value for the RSI threshold strategy on Airbus.}
+  \label{fig:bt}
+\end{figure}
+
+\section{Investment Portfolio Optimization Strategy Analysis}
+
+\subsection{Analysis Objective}
+Compute returns/risk metrics for a small multi-asset portfolio (including Airbus) and obtain an allocation that maximizes the Sharpe ratio.
+
+\subsection{Analysis Method}
+The notebook:
+\begin{itemize}
+  \item downloads Adjusted Close prices for a chosen set of assets,
+  \item computes daily returns, cumulative returns, annualized metrics, and correlations,
+  \item performs Sharpe-ratio optimization with constraints $\sum w_i = 1$ and $0 \le w_i \le 1$ using \texttt{scipy.optimize}.
+\end{itemize}
+
+\subsection{Portfolio Assets}
+The default asset set in the notebook is:
+\begin{center}
+\texttt{AIR.PA} (Airbus), \texttt{BA} (Boeing), \texttt{SAF.PA} (Safran), \texttt{GLD} (Gold ETF).
+\end{center}
+You can change this list directly in the notebook.
+
+\subsection{Key Figures Produced by the Notebook}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.92\textwidth]{figures/portfolio_cumulative_returns.png}
+  \caption{Cumulative returns of the portfolio assets.}
+  \label{fig:cum}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \begin{subfigure}{0.49\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{figures/portfolio_annualized_returns.png}
+    \caption{Annualized returns.}
+  \end{subfigure}
+  \begin{subfigure}{0.49\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{figures/portfolio_annualized_volatility.png}
+    \caption{Annualized volatility (risk).}
+  \end{subfigure}
+  \caption{Annualized metrics for each asset.}
+  \label{fig:ann}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.70\textwidth]{figures/portfolio_correlation_matrix.png}
+  \caption{Correlation matrix of daily returns.}
+  \label{fig:corr}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.80\textwidth]{figures/portfolio_optimal_weights.png}
+  \caption{Optimized weights (max Sharpe) under long-only constraints.}
+  \label{fig:w}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.92\textwidth]{figures/portfolio_equal_vs_optimal.png}
+  \caption{Comparison of cumulative returns: equal-weight vs optimized (max Sharpe) portfolio.}
+  \label{fig:cmp}
+\end{figure}
+
+\appendix
+\section{Reproducibility Notes}
+\begin{itemize}
+  \item Run the notebook first to generate all figures under \texttt{figures/}.
+  \item Then compile this \LaTeX{} file. The report includes the generated images by relative path.
+  \item The notebook also exports:
+    \begin{itemize}
+      \item \texttt{figures/airbus\_stock\_data.xlsx},
+      \item \texttt{figures/portfolio\_asset\_metrics.csv},
+      \item \texttt{figures/portfolio\_portfolio\_metrics.csv}.
+    \end{itemize}
+\end{itemize}
+
+\end{document}
